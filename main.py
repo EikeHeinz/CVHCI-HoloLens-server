@@ -1,5 +1,10 @@
+import os
+
 import socket
 import numpy as np
+import skimage
+
+from instance_segmentation.inference import MaskRCNNInference, WEIGHTS_PATH, IMAGE_DIR
 # import sys
 
 
@@ -16,11 +21,17 @@ def main():
     print("Listening for connections...")
 
     # initialize image variables
-    image = np.zeros((1, 1, 1))
+    image_name = os.listdir(IMAGE_DIR)[0]
+    image = skimage.io.imread(os.path.join(IMAGE_DIR, image_name))
+
     depth_image = np.zeros((1, 1))
 
     # this is the point where the cursor was during the select gesture
     image_point = (-1, -1)
+
+    # Initialize the inference model 
+    seg_inference_model = MaskRCNNInference(WEIGHTS_PATH)
+    sample_detections = seg_inference_model.get_detections([image])[0]
 
     while True:
         # Wait for connection
@@ -40,11 +51,6 @@ def main():
                     break
         finally:
             connection.close()
-
-
-def instance_segmentation(image, depth_image):
-    # TODO call instance segmentation model
-    print("Instance segmentation not yet implemented")
 
 
 def estimate_shape(cropped_image):

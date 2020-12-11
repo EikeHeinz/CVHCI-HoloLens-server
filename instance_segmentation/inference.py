@@ -15,9 +15,14 @@ IMAGE_DIR = os.path.abspath('./instance_segmentation/images')
 WEIGHTS_PATH = os.path.abspath('./instance_segmentation/models/rgb_mask_rcnn.h5')
 
 class MaskRCNNInference(MaskRCNN):
-    
-    def __init__(self, detect_thresh=0.65, weights_path=None):
+    """ CVHCI inference model for MaskRCNN matterport implementation """
 
+    def __init__(self, detect_thresh: float = 0.65, weights_path: str = None):
+        """ CVHCI Inference model for MaskRCNN matterport implementation
+        Arguments: 
+            :param detect_thresh: Threshold used for detecting images.
+            :param weights_path: Path to weights for Mask RCNN
+        """
         class InferenceConfig(SunConfig):
             # Run detection on one image at a time
             GPU_COUNT = 1
@@ -34,12 +39,19 @@ class MaskRCNNInference(MaskRCNN):
         else: 
             print('No weights loaded, consider to provide weights path.')
 
-    def get_detections(self, image):
-        
-        if type(image) is not list:
-            return self.detect([image])
-        else: 
-            return self.detect(image)
+    def get_detections(self, images):
+        """Runs the detection pipeline.
+
+        images: List of images, potentially of different sizes.
+
+        Returns a list of dicts, one dict per image. The dict contains:
+        rois: [N, (y1, x1, y2, x2)] detection bounding boxes
+        class_ids: [N] int class IDs
+        scores: [N] float probability scores for the class IDs
+        masks: [H, W, N] instance binary masks
+        """        
+        # Custom Transformations on the output are done here.
+        return self.detect(images)
 
 if __name__ == '__main__':
     # Load a random image from the images folder
@@ -50,7 +62,7 @@ if __name__ == '__main__':
         model = MaskRCNNInference(weights_path=WEIGHTS_PATH)
 
         # Run detection
-        results = model.get_detections([image])
+        results = model.detect([image])
 
         # Visualize results
         r = results[0]
