@@ -7,7 +7,9 @@
 
 ### (optional)activate virtualenv
 
-`source virtual-env/bin/activate`
+```
+source virtual-env/bin/activate
+```
 
 ### install pytorch
 
