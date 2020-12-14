@@ -34,22 +34,6 @@ import datetime
 import numpy as np
 import skimage.draw
 import imgaug
-# Activate free gpu
-
-try: 
-    print('Try to set gpu ressources ...')
-    import nvgpu
-    available_gpus = nvgpu.available_gpus()
-
-    if type(available_gpus) is list and len(available_gpus) > 0:
-        os.environ["CUDA_VISIBLE_DEVICES"] = available_gpus[0]
-        print('Using GPU ', available_gpus[0])
-
-    else: 
-        print('No free gpu found, try later..')
-        exit()
-except: 
-    pass
 
 # Root directory of the project
 ROOT_DIR = os.path.abspath('./')
