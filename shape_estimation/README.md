@@ -27,16 +27,38 @@ python -m pip install scipy
 ### install detectron2
 
 ```shell
-python -m pip install 'git+https://github.com/facebookresearch/detectron2.git@v0.3'
+# clone specific branch of forked detectron2 repo
+
+## for Linux/MacOS
+git clone -b ting_dev https://github.com/merlinz165/detectron2.git
+
+## for Windows
+git clone -b ting_dev_win https://github.com/merlinz165/detectron2.git
+
+# install detectron2
+cd detectron2
+python setup.py build develop
 ```
 
 ### install pytorch3d
 
 ```shell
+cd ..
+
+# clone specific branch of forked pytorch3d repo
+
+git clone -b ting_dev https://github.com/merlinz165/pytorch3d.git
+
+# install pytorch3d
+cd pytorch3d
 export FORCE_CUDA=1
-python -m pip install 'git+https://github.com/facebookresearch/pytorch3d.git@v0.2.5'
+python setup.py build develop
 ```
 
-## Using requirements
+# Usage
 
-*Install Pytorch before running `pip install -r requirements`*
+in the `shape_estimation` directory:
+
+Simply run `python inference.py` will infer all sample images.
+
+run `python inference.py --help` for more options (e.g., single image, output path, focal length).
