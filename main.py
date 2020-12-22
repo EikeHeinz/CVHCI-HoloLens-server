@@ -88,7 +88,7 @@ def main():
 def load_obj_from_file():
     filepath = 'model2.obj'
     with open(filepath, 'r') as file:
-        data = file.read().replace('\n', ' ')
+        data = file.read()#.replace('\n', ' ')
         return data
 
 
