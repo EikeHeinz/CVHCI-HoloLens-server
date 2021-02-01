@@ -27,32 +27,38 @@ python -m pip install scipy
 ### install detectron2
 
 ```shell
-# clone specific branch of forked detectron2 repo
+# pip install specific branch of forked detectron2 repo
 
 ## for Linux/MacOS
-git clone -b ting_dev https://github.com/merlinz165/detectron2.git
+pip install 'git+https://github.com/merlinz165/detectron2.git@ting_dev'
 
 ## for Windows
-git clone -b ting_dev_win https://github.com/merlinz165/detectron2.git
+pip install 'git+https://github.com/merlinz165/detectron2.git@ting_dev_win'
 
-# install detectron2
-cd detectron2
-python setup.py build develop
 ```
 
 ### install pytorch3d
 
 ```shell
-cd ..
+# pip install specific branch of forked pytorch3d repo
 
-# clone specific branch of forked pytorch3d repo
+## for Linux/MacOS and Windows
+
+pip install 'git+https://github.com/merlinz165/pytorch3d.git@ting_dev'
 
 git clone -b ting_dev https://github.com/merlinz165/pytorch3d.git
+```
 
-# install pytorch3d
-cd pytorch3d
-export FORCE_CUDA=1
-python setup.py build develop
+### install meshrcnn (Locally)
+
+```shell
+# clone specific branch of meshrcnn repo
+git clone -b ting_dev https://github.com/merlinz165/meshrcnn.git
+
+# install meshrcnn
+cd meshrcnn
+pip install -e .
+
 ```
 
 # Usage
