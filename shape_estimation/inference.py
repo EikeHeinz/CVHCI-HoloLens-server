@@ -26,15 +26,89 @@ import cv2
 
 
 IMAGE_DIR = os.path.abspath('./shape_estimation/images')
-OUTPUT_DIR = os.path.abspath('./shape_estimation/output_objects')
+OUTPUT_BASE_DIR = os.path.abspath('./shape_estimation/output_objects')
 
 WEIGHTS_PATH = os.path.abspath('./shape_estimation/models/meshrcnn_R50.pth')
 CONFIG_FILE = os.path.abspath('./shape_estimation/models/meshrcnn_R50_FPN.yaml')
+FOCAL_LENGTH = 20
+DETECT_THRESH = 0.9
+
+class ShapeEstimationModel(object):
+    def __init__(self, input_image, roi, output_base_dir=OUTPUT_BASE_DIR, weight_path=WEIGHTS_PATH, cfg_file=CONFIG_FILE, focal_length=FOCAL_LENGTH, detect_thresh= DETECT_THRESH):
+        """
+        Args:
+            input_image: **full path** of original image
+            roi: (y1, x1, y2, x2) detection bounding boxes
+
+        """
+        self.input_image_full_path = input_image
+        self.roi = roi
+        self.output_base_dir = output_base_dir
+        self.weight_path = weight_path
+        self.focal_length = focal_length
+        self.detect_thresh = detect_thresh
+
+        self.roi_image_name = ''
+
+        self.cfg = self.setup_cfg(cfg_file)
+        self.object_full_path = ''
+
+    def setup_cfg(self, cfg_file):
+        cfg = get_cfg()
+        get_meshrcnn_cfg_defaults(cfg)
+        cfg.merge_from_file(cfg_file)
+        # model weights path
+        cfg.merge_from_list(['MODEL.WEIGHTS', self.weight_path])
+        cfg.freeze()
+        return cfg
+
+    ## INPUT: original_image_path, ROI(Array)
+    def crop_rois(self):
+        """
+        rois: [N, (y1, x1, y2, x2)] detection bounding boxes
+        Set the cropping area with box=(left, upper, right, lower) = (x1, y1, x2, y2)
+        """
+        # crop_box = [roi[1], roi[0], roi[3], roi[2]]
+        image_name = image_full_path.split("/")[-1].split(".")[0]
+        image_ext = image_full_path.split("/")[-1].split(".")[1]
+
+        im_original = Image.open(image_full_path)
+        im_crop = im_original.crop((roi[1], roi[0], roi[3], roi[2]))
+        roi_img_name = str(roi[1]) + '-' + str(roi[0]) + '-' + str(roi[3]) + '-' + str(roi[2]) + '_' + image_name
+        self.roi_image_name = roi_image_name
+        roi_img_full_name = roi_img_name + '.' + image_ext
+        roi_img_save_dir = args.output + '/roi_images'
+        os.makedirs(roi_img_save_dir, exist_ok=True)
+        roi_img_full_path = roi_img_save_dir + '/' + roi_img_full_name
+        im_crop.save(roi_img_full_path, quality=95)
+
+        return roi_img_full_path, roi_img_name
+
+    def visualize_image(self, image_name, image_path):
+        demo = VisualizationDemo(
+            self.cfg, output_dir = os.path.join(self.output_base_dir, self.roi_image_name)
+        )
+        # use PIL, to be consistent with evaluation
+        img = read_image(image_path, format="BGR")
+        predictions = demo.run_on_image(img, focal_length=self.focal_length)
+
+        obj_full_path = demo.object_full_path
+        return obj_full_path
+
+
+    def get_detections(self):
+        roi_image_full_path, roi_image_name = self.crop_rois()
+        object_full_path = self.visualize_image(roi_image_name, roi_image_full_path)
+        self.object_full_path = object_full_path
+        shape_estimations = {
+            'object_file': object_full_path
+        }
+        return shape_estimations
+
 
 
 class VisualizationDemo(object):
 
-    object_full_path = ''
     def __init__(self, cfg, vis_highest_scoring=True, output_dir="./vis"):
         """
         Args:
@@ -42,6 +116,7 @@ class VisualizationDemo(object):
             vis_highest_scoring (bool): If set to True visualizes only
                                         the highest scoring prediction
         """
+        self.object_full_path = ''
         self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
         self.colors = self.metadata.thing_colors
         self.cat_names = self.metadata.thing_classes
@@ -181,29 +256,6 @@ class VisualizationDemo(object):
         save_obj(save_file, verts, faces)
 
 
-def visualize_image(args, cfg, image_name, image_path):
-    demo = VisualizationDemo(
-        cfg, vis_highest_scoring = args.onlyhighest, output_dir = os.path.join(args.output, image_name)
-    )
-    # use PIL, to be consistent with evaluation
-    img = read_image(image_path, format="BGR")
-    predictions = demo.run_on_image(img, focal_length=args.focal_length)
-
-    obj_full_path = demo.object_full_path
-    return obj_full_path
-
-
-def setup_cfg(args):
-    cfg = get_cfg()
-    get_meshrcnn_cfg_defaults(cfg)
-    cfg.merge_from_file(args.config_file)
-    cfg.merge_from_list(args.opts)
-    # model weights path
-    cfg.merge_from_list(['MODEL.WEIGHTS', WEIGHTS_PATH])
-    cfg.freeze()
-    return cfg
-
-
 def get_parser():
     parser = argparse.ArgumentParser(description="Shape Estimation Demo")
     parser.add_argument(
@@ -229,7 +281,7 @@ def get_parser():
     parser.add_argument(
         '-output',
         "--output",
-        default = OUTPUT_DIR,
+        default = OUTPUT_BASE_DIR,
         help = "A directory to save output visualizations"
     )
     parser.add_argument(
@@ -261,28 +313,6 @@ def get_parser():
     return parser
 
 
-## INPUT: original_image_path, ROI(Array)
-def crop_rois(image_full_path, roi):
-    """
-    rois: [N, (y1, x1, y2, x2)] detection bounding boxes
-    Set the cropping area with box=(left, upper, right, lower) = (x1, y1, x2, y2)
-    """
-    # crop_box = [roi[1], roi[0], roi[3], roi[2]]
-    image_name = image_full_path.split("/")[-1].split(".")[0]
-    image_ext = image_full_path.split("/")[-1].split(".")[1]
-
-    im_original = Image.open(image_full_path)
-    im_crop = im_original.crop((roi[1], roi[0], roi[3], roi[2]))
-    roi_img_name = str(roi[1]) + '-' + str(roi[0]) + '-' + str(roi[3]) + '-' + str(roi[2]) + '_' + image_name
-    roi_img_full_name = roi_img_name + '.' + image_ext
-    roi_img_save_dir = args.output + '/roi_images'
-    os.makedirs(roi_img_save_dir, exist_ok=True)
-    roi_img_full_path = roi_img_save_dir + '/' + roi_img_full_name
-    im_crop.save(roi_img_full_path, quality=95)
-
-    return roi_img_full_path, roi_img_name
-
-
 if __name__ == "__main__":
     """
     Parameters:
@@ -297,12 +327,9 @@ if __name__ == "__main__":
 
     args = get_parser().parse_args()
 
-    cfg = setup_cfg(args)
-
     image_full_path = args.image
 
     roi_list = [int(item) for item in args.roi.split(',')]
 
-    roi_image_full_path, roi_image_name = crop_rois(image_full_path, roi_list)
-
-    object_full_path =  visualize_image(args, cfg, roi_image_name, roi_image_full_path)
+    shape_estimation_model = ShapeEstimationModel(image_full_path, roi_list)
+    shape_estimations = shape_estimation_model.get_detections()
