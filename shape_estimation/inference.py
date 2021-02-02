@@ -68,20 +68,21 @@ class ShapeEstimationModel(object):
         rois: [N, (y1, x1, y2, x2)] detection bounding boxes
         Set the cropping area with box=(left, upper, right, lower) = (x1, y1, x2, y2)
         """
+        image_full_path = self.input_image_full_path
+        roi = self.roi
         # crop_box = [roi[1], roi[0], roi[3], roi[2]]
-        image_name = image_full_path.split("/")[-1].split(".")[0]
-        image_ext = image_full_path.split("/")[-1].split(".")[1]
+        image_name_with_ext = os.path.basename(image_full_path)
+        image_name, image_ext = os.path.splitext(image_name_with_ext)
 
         im_original = Image.open(image_full_path)
         im_crop = im_original.crop((roi[1], roi[0], roi[3], roi[2]))
         roi_img_name = str(roi[1]) + '-' + str(roi[0]) + '-' + str(roi[3]) + '-' + str(roi[2]) + '_' + image_name
-        self.roi_image_name = roi_image_name
-        roi_img_full_name = roi_img_name + '.' + image_ext
-        roi_img_save_dir = args.output + '/roi_images'
+        self.roi_image_name = roi_img_name
+        roi_img_full_name = roi_img_name + image_ext
+        roi_img_save_dir = os.path.join(self.output_base_dir, "roi_images")
         os.makedirs(roi_img_save_dir, exist_ok=True)
-        roi_img_full_path = roi_img_save_dir + '/' + roi_img_full_name
+        roi_img_full_path = os.path.join(roi_img_save_dir, roi_img_full_name)
         im_crop.save(roi_img_full_path, quality=95)
-
         return roi_img_full_path, roi_img_name
 
     def visualize_image(self, image_name, image_path):
