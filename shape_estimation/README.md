@@ -60,8 +60,23 @@ pip install 'git+https://github.com/merlinz165/meshrcnn.git@ting_dev'
 
 # Usage
 
-in the `shape_estimation` directory:
+in the project root path:
 
-Simply run `python inference.py` will infer all sample images.
+## Command Line
+```shell
+# --image: input image path
+# --roi: result[roi] of instance segmentation output. rois: [N, (y1, x1, y2, x2)] detection bounding boxes
+python shape_estimation/inference.py --image ./shape_estimation/0007.png --roi "95, 25, 390, 470"
 
-run `python inference.py --help` for more options (e.g., single image, output path, focal length).
+```
+## Using `ShapeEstimationModel` Class
+```
+...
+from shape_estimation.inference import ShapeEstimationModel
+...
+estimation_model = ShapeEstimationModel(input_image_path, roi)
+detections = estimation_model.get_detection()
+## detections is a dict. object file path will be detections['object_file']
+...
+
+```
