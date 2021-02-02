@@ -13,6 +13,7 @@ from detectron2.engine.defaults import DefaultPredictor
 from detectron2.utils.logger import setup_logger
 from pytorch3d.io import save_obj
 from pytorch3d.structures import Meshes
+from PIL import Image
 
 # required so that .register() calls are executed in module scope
 import meshrcnn.data  # noqa
@@ -24,14 +25,16 @@ from meshrcnn.evaluation import transform_meshes_to_camera_coord_system
 import cv2
 
 
-IMAGE_DIR = os.path.abspath('./images')
-OUTPUT_DIR = os.path.abspath('./output_objects')
+IMAGE_DIR = os.path.abspath('./shape_estimation/images')
+OUTPUT_DIR = os.path.abspath('./shape_estimation/output_objects')
 
-WEIGHTS_PATH = os.path.abspath('./models/meshrcnn_R50.pth')
-CONFIG_FILE = os.path.abspath('./models/meshrcnn_R50_FPN.yaml')
+WEIGHTS_PATH = os.path.abspath('./shape_estimation/models/meshrcnn_R50.pth')
+CONFIG_FILE = os.path.abspath('./shape_estimation/models/meshrcnn_R50_FPN.yaml')
 
 
 class VisualizationDemo(object):
+
+    object_full_path = ''
     def __init__(self, cfg, vis_highest_scoring=True, output_dir="./vis"):
         """
         Args:
@@ -174,6 +177,7 @@ class VisualizationDemo(object):
 
         save_file = os.path.join(self.output_dir, "%d_mesh_%s_%.3f.obj" % (det_id, cat_name, score))
         verts, faces = mesh.get_mesh_verts_faces(0)
+        self.object_full_path = save_file
         save_obj(save_file, verts, faces)
 
 
@@ -184,6 +188,9 @@ def visualize_image(args, cfg, image_name, image_path):
     # use PIL, to be consistent with evaluation
     img = read_image(image_path, format="BGR")
     predictions = demo.run_on_image(img, focal_length=args.focal_length)
+
+    obj_full_path = demo.object_full_path
+    return obj_full_path
 
 
 def setup_cfg(args):
@@ -200,23 +207,33 @@ def setup_cfg(args):
 def get_parser():
     parser = argparse.ArgumentParser(description="Shape Estimation Demo")
     parser.add_argument(
+        '-cfg',
         "--config-file",
         default = CONFIG_FILE,
         metavar = "FILE",
         help = "path to network config file"
     )
-    parser.add_argument("--image", help = "A path to an input image")
     parser.add_argument(
+        '-img',
+        "--image",
+        default = True,
+        help = "A path to an input image",
+        required = True
+    )
+    parser.add_argument(
+        '-input',
         "--input-dir",
         default = IMAGE_DIR,
         help = "A path to the input images directory"
     )
     parser.add_argument(
+        '-output',
         "--output",
         default = OUTPUT_DIR,
         help = "A directory to save output visualizations"
     )
     parser.add_argument(
+        '-f',
         "--focal-length",
         type = float,
         default = 20.0,
@@ -229,6 +246,13 @@ def get_parser():
         help = "will return only the highest scoring detection"
     )
     parser.add_argument(
+        '-roi',
+        '--roi',
+        help = "(y1, x1, y2, x2) detection bounding boxes",
+        required = True,
+        type = str
+    )
+    parser.add_argument(
         "opts",
         help="Modify model config options using the command-line",
         default=None,
@@ -237,22 +261,48 @@ def get_parser():
     return parser
 
 
+## INPUT: original_image_path, ROI(Array)
+def crop_rois(image_full_path, roi):
+    """
+    rois: [N, (y1, x1, y2, x2)] detection bounding boxes
+    Set the cropping area with box=(left, upper, right, lower) = (x1, y1, x2, y2)
+    """
+    # crop_box = [roi[1], roi[0], roi[3], roi[2]]
+    image_name = image_full_path.split("/")[-1].split(".")[0]
+    image_ext = image_full_path.split("/")[-1].split(".")[1]
+
+    im_original = Image.open(image_full_path)
+    im_crop = im_original.crop((roi[1], roi[0], roi[3], roi[2]))
+    roi_img_name = str(roi[1]) + '-' + str(roi[0]) + '-' + str(roi[3]) + '-' + str(roi[2]) + '_' + image_name
+    roi_img_full_name = roi_img_name + '.' + image_ext
+    roi_img_save_dir = args.output + '/roi_images'
+    os.makedirs(roi_img_save_dir, exist_ok=True)
+    roi_img_full_path = roi_img_save_dir + '/' + roi_img_full_name
+    im_crop.save(roi_img_full_path, quality=95)
+
+    return roi_img_full_path, roi_img_name
+
+
 if __name__ == "__main__":
+    """
+    Parameters:
+    --image: path of image
+    --roi: "y1, x1, y2, x2"
+    example:
+    python shape_estimation/inference.py --image ./shape_estimation/0007.png --roi "95, 25, 390, 470"
+
+    Output: 'object_full_path', path of generated object
+    """
     mp.set_start_method("spawn", force=True)
 
     args = get_parser().parse_args()
 
     cfg = setup_cfg(args)
 
-    if args.image:
-        # input is single image
-        image_name = args.image.split("/")[-1].split(".")[0]
-        image_path = args.image
-        visualize_image(args, cfg, image_name, image_path)
-    else:
-        # input is a directory containing images
-        file_names = os.listdir(args.input_dir)
-        for image in file_names:
-            image_name = image.split(".")[0]
-            image_path = os.path.join(args.input_dir, image)
-            visualize_image(args, cfg, image_name, image_path)
+    image_full_path = args.image
+
+    roi_list = [int(item) for item in args.roi.split(',')]
+
+    roi_image_full_path, roi_image_name = crop_rois(image_full_path, roi_list)
+
+    object_full_path =  visualize_image(args, cfg, roi_image_name, roi_image_full_path)
