@@ -34,7 +34,7 @@ FOCAL_LENGTH = 20
 DETECT_THRESH = 0.9
 
 class ShapeEstimationModel(object):
-    def __init__(self, input_image, roi, output_base_dir=OUTPUT_BASE_DIR, weight_path=WEIGHTS_PATH, cfg_file=CONFIG_FILE, focal_length=FOCAL_LENGTH, detect_thresh= DETECT_THRESH):
+    def __init__(self, input_image, rois, output_base_dir=OUTPUT_BASE_DIR, weight_path=WEIGHTS_PATH, cfg_file=CONFIG_FILE, focal_length=FOCAL_LENGTH, detect_thresh= DETECT_THRESH):
         """
         Args:
             input_image: **full path** of original image
@@ -42,16 +42,14 @@ class ShapeEstimationModel(object):
 
         """
         self.input_image_full_path = input_image
-        self.roi = roi
+        self.rois = rois
         self.output_base_dir = output_base_dir
         self.weight_path = weight_path
         self.focal_length = focal_length
         self.detect_thresh = detect_thresh
 
-        self.roi_image_name = ''
-
         self.cfg = self.setup_cfg(cfg_file)
-        self.object_full_path = ''
+        self.objects = []
 
     def setup_cfg(self, cfg_file):
         cfg = get_cfg()
@@ -63,13 +61,12 @@ class ShapeEstimationModel(object):
         return cfg
 
     ## INPUT: original_image_path, ROI(Array)
-    def crop_rois(self):
+    def crop_rois(self, roi):
         """
         rois: [N, (y1, x1, y2, x2)] detection bounding boxes
         Set the cropping area with box=(left, upper, right, lower) = (x1, y1, x2, y2)
         """
         image_full_path = self.input_image_full_path
-        roi = self.roi
         # crop_box = [roi[1], roi[0], roi[3], roi[2]]
         image_name_with_ext = os.path.basename(image_full_path)
         image_name, image_ext = os.path.splitext(image_name_with_ext)
@@ -77,7 +74,6 @@ class ShapeEstimationModel(object):
         im_original = Image.open(image_full_path)
         im_crop = im_original.crop((roi[1], roi[0], roi[3], roi[2]))
         roi_img_name = str(roi[1]) + '-' + str(roi[0]) + '-' + str(roi[3]) + '-' + str(roi[2]) + '_' + image_name
-        self.roi_image_name = roi_img_name
         roi_img_full_name = roi_img_name + image_ext
         roi_img_save_dir = os.path.join(self.output_base_dir, "roi_images")
         os.makedirs(roi_img_save_dir, exist_ok=True)
@@ -87,7 +83,7 @@ class ShapeEstimationModel(object):
 
     def visualize_image(self, image_name, image_path):
         demo = VisualizationDemo(
-            self.cfg, output_dir = os.path.join(self.output_base_dir, self.roi_image_name)
+            self.cfg, output_dir = os.path.join(self.output_base_dir, image_name)
         )
         # use PIL, to be consistent with evaluation
         img = read_image(image_path, format="BGR")
@@ -98,13 +94,12 @@ class ShapeEstimationModel(object):
 
 
     def get_detections(self):
-        roi_image_full_path, roi_image_name = self.crop_rois()
-        object_full_path = self.visualize_image(roi_image_name, roi_image_full_path)
-        self.object_full_path = object_full_path
-        shape_estimations = {
-            'object_file': object_full_path
-        }
-        return shape_estimations
+        for roi in self.rois:
+            roi_image_full_path, roi_image_name = self.crop_rois(roi)
+            object_full_path = self.visualize_image(roi_image_name, roi_image_full_path)
+            self.objects.append(object_full_path)
+
+        return self.objects
 
 
 
