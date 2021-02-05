@@ -2,16 +2,15 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 import argparse
-import multiprocessing as mp
 import numpy as np
 import os
 import torch
 from detectron2.config import get_cfg
 from detectron2.data import MetadataCatalog
-from detectron2.data.detection_utils import read_image
+from detectron2.data.detection_utils import read_image_object
 from detectron2.engine.defaults import DefaultPredictor
 from detectron2.utils.logger import setup_logger
-from pytorch3d.io import save_obj
+from pytorch3d.io import generate_obj
 from pytorch3d.structures import Meshes
 from PIL import Image
 
@@ -25,25 +24,20 @@ from meshrcnn.evaluation import transform_meshes_to_camera_coord_system
 import cv2
 
 
-IMAGE_DIR = os.path.abspath('./shape_estimation/images')
-OUTPUT_BASE_DIR = os.path.abspath('./shape_estimation/output_objects')
-
 WEIGHTS_PATH = os.path.abspath('./shape_estimation/models/meshrcnn_R50.pth')
 CONFIG_FILE = os.path.abspath('./shape_estimation/models/meshrcnn_R50_FPN.yaml')
-FOCAL_LENGTH = 20
+FOCAL_LENGTH = 10.0
 DETECT_THRESH = 0.9
 
 class ShapeEstimationModel(object):
-    def __init__(self, input_image, rois, output_base_dir=OUTPUT_BASE_DIR, weight_path=WEIGHTS_PATH, cfg_file=CONFIG_FILE, focal_length=FOCAL_LENGTH, detect_thresh= DETECT_THRESH):
+    def __init__(self, input_image, rois, weight_path=WEIGHTS_PATH, cfg_file=CONFIG_FILE, focal_length=FOCAL_LENGTH, detect_thresh= DETECT_THRESH):
         """
         Args:
-            input_image: **full path** of original image
+            input_image: PIL image object
             roi: (y1, x1, y2, x2) detection bounding boxes
-
         """
-        self.input_image_full_path = input_image
+        self.input_image = input_image
         self.rois = rois
-        self.output_base_dir = output_base_dir
         self.weight_path = weight_path
         self.focal_length = focal_length
         self.detect_thresh = detect_thresh
@@ -60,59 +54,33 @@ class ShapeEstimationModel(object):
         cfg.freeze()
         return cfg
 
-    ## INPUT: original_image_path, ROI(Array)
-    def crop_rois(self, roi):
-        """
-        rois: [N, (y1, x1, y2, x2)] detection bounding boxes
-        Set the cropping area with box=(left, upper, right, lower) = (x1, y1, x2, y2)
-        """
-        image_full_path = self.input_image_full_path
-        # crop_box = [roi[1], roi[0], roi[3], roi[2]]
-        image_name_with_ext = os.path.basename(image_full_path)
-        image_name, image_ext = os.path.splitext(image_name_with_ext)
-
-        im_original = Image.open(image_full_path)
-        im_crop = im_original.crop((roi[1], roi[0], roi[3], roi[2]))
-        roi_img_name = str(roi[1]) + '-' + str(roi[0]) + '-' + str(roi[3]) + '-' + str(roi[2]) + '_' + image_name
-        roi_img_full_name = roi_img_name + image_ext
-        roi_img_save_dir = os.path.join(self.output_base_dir, "roi_images")
-        os.makedirs(roi_img_save_dir, exist_ok=True)
-        roi_img_full_path = os.path.join(roi_img_save_dir, roi_img_full_name)
-        im_crop.save(roi_img_full_path, quality=95)
-        return roi_img_full_path, roi_img_name
-
-    def visualize_image(self, image_name, image_path):
+    def visualize_image(self, image):
         demo = VisualizationDemo(
-            self.cfg, output_dir = os.path.join(self.output_base_dir, image_name)
+            self.cfg, self.focal_length
         )
         # use PIL, to be consistent with evaluation
-        img = read_image(image_path, format="BGR")
+        img = read_image_object(image)
         predictions = demo.run_on_image(img, focal_length=self.focal_length)
-
-        obj_full_path = demo.object_full_path
-        return obj_full_path
-
+        object = demo.object
+        return object
 
     def get_detections(self):
         for roi in self.rois:
-            roi_image_full_path, roi_image_name = self.crop_rois(roi)
-            object_full_path = self.visualize_image(roi_image_name, roi_image_full_path)
-            self.objects.append(object_full_path)
-
+            roi_image = self.input_image.crop((roi[1], roi[0], roi[3], roi[2]))
+            model_object = self.visualize_image(roi_image)
+            self.objects.append(model_object)
         return self.objects
-
 
 
 class VisualizationDemo(object):
 
-    def __init__(self, cfg, vis_highest_scoring=True, output_dir="./vis"):
+    def __init__(self, cfg, focal_length, vis_highest_scoring=True):
         """
         Args:
             cfg (CfgNode):
             vis_highest_scoring (bool): If set to True visualizes only
                                         the highest scoring prediction
         """
-        self.object_full_path = ''
         self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
         self.colors = self.metadata.thing_colors
         self.cat_names = self.metadata.thing_classes
@@ -120,9 +88,7 @@ class VisualizationDemo(object):
         self.cpu_device = torch.device("cpu")
         self.vis_highest_scoring = vis_highest_scoring
         self.predictor = DefaultPredictor(cfg)
-
-        os.makedirs(output_dir, exist_ok=True)
-        self.output_dir = output_dir
+        self.object = ""
 
     def run_on_image(self, image, focal_length=10.0):
         """
@@ -243,13 +209,8 @@ class VisualizationDemo(object):
             lineType=cv2.LINE_AA,
         )
 
-        save_file = os.path.join(self.output_dir, "%d_mask_%s_%.3f.png" % (det_id, cat_name, score))
-        cv2.imwrite(save_file, composite[:, :, ::-1])
-
-        save_file = os.path.join(self.output_dir, "%d_mesh_%s_%.3f.obj" % (det_id, cat_name, score))
         verts, faces = mesh.get_mesh_verts_faces(0)
-        self.object_full_path = save_file
-        save_obj(save_file, verts, faces)
+        self.object = generate_obj(verts, faces)
 
 
 def get_parser():
@@ -265,20 +226,7 @@ def get_parser():
         '-img',
         "--image",
         default = True,
-        help = "A path to an input image",
-        required = True
-    )
-    parser.add_argument(
-        '-input',
-        "--input-dir",
-        default = IMAGE_DIR,
-        help = "A path to the input images directory"
-    )
-    parser.add_argument(
-        '-output',
-        "--output",
-        default = OUTPUT_BASE_DIR,
-        help = "A directory to save output visualizations"
+        help = "A path to an input image"
     )
     parser.add_argument(
         '-f',
@@ -297,7 +245,6 @@ def get_parser():
         '-roi',
         '--roi',
         help = "(y1, x1, y2, x2) detection bounding boxes",
-        required = True,
         type = str
     )
     parser.add_argument(
@@ -317,15 +264,17 @@ if __name__ == "__main__":
     example:
     python shape_estimation/inference.py --image ./shape_estimation/0007.png --roi "95, 25, 390, 470"
 
-    Output: 'object_full_path', path of generated object
     """
-    mp.set_start_method("spawn", force=True)
 
     args = get_parser().parse_args()
 
-    image_full_path = args.image
+    im_original = Image.open('./shape_estimation/images/0007.png')
 
-    roi_list = [int(item) for item in args.roi.split(',')]
+    roi_list = [
+        [80, 20, 390, 475]
+    ]
 
-    shape_estimation_model = ShapeEstimationModel(image_full_path, roi_list)
-    shape_estimations = shape_estimation_model.get_detections()
+    shape_estimation_model = ShapeEstimationModel(im_original, roi_list)
+    shape_objects = shape_estimation_model.get_detections()
+    for x in shape_objects:
+        print(x)
