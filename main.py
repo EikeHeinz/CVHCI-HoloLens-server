@@ -17,6 +17,9 @@ from instance_segmentation.inference import MaskRCNNInference, WEIGHTS_PATH, IMA
 
 get_sample_images = True
 
+ipAddress = '192.168.0.109'
+port = 10000
+
 
 def main():
     print("PyTorch CUDA: ", torch.cuda.is_available())
@@ -49,7 +52,7 @@ def main():
     print("Setting up Socket")
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    server_address = ('192.168.2.109', 10000)
+    server_address = (ipAddress, port)
     print("starting socket on %s port %s" % server_address)
     sock.bind(server_address)
 
