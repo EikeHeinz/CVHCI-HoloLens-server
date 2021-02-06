@@ -13,11 +13,12 @@ import torch
 import tensorflow as tf
 
 from instance_segmentation.inference import MaskRCNNInference, WEIGHTS_PATH, IMAGE_DIR
+from shape_estimation.inference import ShapeEstimationModel
 # import sys
 
 get_sample_images = True
 
-ipAddress = '192.168.0.109'
+ipAddress = '192.168.2.109'
 port = 10000
 
 
@@ -34,8 +35,8 @@ def main():
     obj = load_obj_from_file()
 
     # initialize image variables
-    # image_name = os.listdir(IMAGE_DIR)[0]
-    # image = skimage.io.imread(os.path.join(IMAGE_DIR, image_name))
+    image_name = os.listdir(IMAGE_DIR)[0]
+    image = skimage.io.imread(os.path.join(IMAGE_DIR, image_name))
 
     # depth_image = np.zeros((1, 1))
 
@@ -43,8 +44,10 @@ def main():
     # image_point = (-1, -1)
 
     # Initialize the inference model 
-    # seg_inference_model = MaskRCNNInference(weights_path=WEIGHTS_PATH)
-    # sample_detections = seg_inference_model.get_detections([image])[0]
+    seg_inference_model = MaskRCNNInference(weights_path=WEIGHTS_PATH)
+    sample_detections = seg_inference_model.get_detections([image])[0]
+
+
 
     # plt.imshow(sample_detections['masks'][:, :, 0])
     # plt.show()
@@ -97,8 +100,16 @@ def main():
             write_data_to_file(buffer)
             buffer = buffer[buffer.index(";") + 1:]
             #write_data_to_file(buffer)
-            decode_message(buffer, image_counter)
+            img, coordinates = decode_message(buffer, image_counter)
             image_counter += 1
+            detections = seg_inference_model.get_detections([img])[0]
+            rois = detections['rois']
+
+            pil_img = Image.fromarray(img.astype('uint8'), 'RGB')
+            shape_estimation = ShapeEstimationModel(pil_img, rois)
+            obj_models = shape_estimation.get_detections()
+
+
             # This is entrypoint for model pipeline
             connection.sendall(obj.encode("UTF-8"))
 
