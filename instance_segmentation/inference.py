@@ -1,23 +1,22 @@
 import os
 
-import PIL
 import skimage
 
 from instance_segmentation.mrcnn.model import MaskRCNN
 from instance_segmentation.mrcnn.sun import SunConfig, CLASSES
 from instance_segmentation.mrcnn import visualize
-from instance_segmentation.mrcnn.visualize import display_images
 
 INFERENCE_CLASSES = ['BG']
 INFERENCE_CLASSES.extend(CLASSES)
 
 IMAGE_DIR = os.path.abspath('./instance_segmentation/images')
-WEIGHTS_PATH = os.path.abspath('./instance_segmentation/models/rgb_mask_rcnn.h5')
+WEIGHTS_PATH = os.path.abspath('./instance_segmentation/models/plain_0005.h5')
+
 
 class MaskRCNNInference(MaskRCNN):
     """ CVHCI inference model for MaskRCNN matterport implementation """
 
-    def __init__(self, detect_thresh: float = 0.65, weights_path: str = None):
+    def __init__(self, detect_thresh: float = 0.8, weights_path: str = None):
         """ CVHCI Inference model for MaskRCNN matterport implementation
         Arguments: 
             :param detect_thresh: Threshold used for detecting images.
@@ -31,12 +30,12 @@ class MaskRCNNInference(MaskRCNN):
 
         config = InferenceConfig()
 
-        super().__init__(model_dir = './', mode='inference', config=config)
+        super().__init__(model_dir='./', mode='inference', config=config)
 
-        if weights_path is not None: 
+        if weights_path is not None:
             self.load_weights(weights_path, by_name=True)
 
-        else: 
+        else:
             print('No weights loaded, consider to provide weights path.')
 
     def get_detections(self, images):
@@ -49,9 +48,10 @@ class MaskRCNNInference(MaskRCNN):
         class_ids: [N] int class IDs
         scores: [N] float probability scores for the class IDs
         masks: [H, W, N] instance binary masks
-        """        
+        """
         # Custom Transformations on the output are done here.
         return self.detect(images)
+
 
 if __name__ == '__main__':
     # Load a random image from the images folder
@@ -66,6 +66,6 @@ if __name__ == '__main__':
 
         # Visualize results
         r = results[0]
-        visualize.display_instances(image, r['rois'], r['masks'], r['class_ids'], 
+        visualize.display_instances(image, r['rois'], r['masks'], r['class_ids'],
                                     INFERENCE_CLASSES, r['scores'],
                                     save_path=os.path.join(IMAGE_DIR, f'{image_name[:-4]}_detected.png'))
