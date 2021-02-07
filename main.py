@@ -111,6 +111,13 @@ def main():
             obj_models = shape_estimation.get_detections()
 
             # TODO select correct model based on (x,y) tuple
+            # model_index = roi_index_of_point(x, y, rois)
+            # if model_index:
+            #     print("point in an area, index is: " + str(model_index))
+            # else:
+            #     print("point not in any area")
+            #
+            # model = obj_models[model_index]
 
             connection.sendall(obj.encode("UTF-8"))
             end_time = timer()
@@ -122,6 +129,13 @@ def main():
 
         finally:
             connection.close()
+
+
+def roi_index_of_point(x, y, rois):
+    for roi in rois:
+        if ((x >= roi[1] and x <= roi[3]) and (y >= roi[0] and y <= roi[2])):
+            return rois.index(roi)
+    return None
 
 
 def load_obj_from_file():
