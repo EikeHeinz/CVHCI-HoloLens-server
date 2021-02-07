@@ -33,7 +33,6 @@ import json
 import datetime
 import numpy as np
 import skimage.draw
-import imgaug
 
 # Root directory of the project
 ROOT_DIR = os.path.abspath('./')
@@ -47,7 +46,7 @@ from mrcnn import model as modellib, utils
 # through the command line argument --logs
 DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 
-CLASSES = ['bed', 'tool', 'desk', 'chair', 'table', 'wardrobe', 'sofa', 'bookcase']
+CLASSES = ['bed', 'chair', 'table', 'sofa', 'bookcase']
 ANNOTATION_FILENAME = 'via_regions_sunrgbd.json'
 CVHCI_DATASET_PATH = "/cvhci/data/depth/SUNRGBD/"
 LOCAL_PATH_DATASET = "C:/Users/Yannick/Downloads/SUNRGBD"
