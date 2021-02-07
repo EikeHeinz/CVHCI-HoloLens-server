@@ -16,42 +16,42 @@ from instance_segmentation.inference import MaskRCNNInference, WEIGHTS_PATH, IMA
 from shape_estimation.inference import ShapeEstimationModel
 # import sys
 
+from timeit import default_timer as timer
+
 get_sample_images = True
 
 ipAddress = '192.168.2.109'
 port = 10000
+
+use_local_model = False
+predict_local_model = False
 
 
 def main():
     print("PyTorch CUDA: ", torch.cuda.is_available())
     print("Tensorflow version: ", tf.__version__)
 
-    #data = load_data_from_file()
-    image_counter = 0
-    #decode_message(data, image_counter)
-#    image_counter += 1
-#    decode_message(data, image_counter)
+    seg_inference_model = MaskRCNNInference(weights_path=WEIGHTS_PATH)
+    if use_local_model:
+        data = load_data_from_file()
+        img, coordinates = decode_message(data)
+
+        plt.imshow(img)
+        plt.show()
+
+        if predict_local_model:
+            sample_detections = seg_inference_model.get_detections([img])[0]
+            pil_img = Image.fromarray(img.astype('uint8'), 'RGB')
+            rois = sample_detections['rois']
+            shape_estimation = ShapeEstimationModel(pil_img, rois)
+            obj_models = shape_estimation.get_detections()
+
+            model_counter = 0
+            for model in obj_models:
+                write_model_to_file(model, model_counter)
+                model_counter += 1
 
     obj = load_obj_from_file()
-
-    # initialize image variables
-    image_name = os.listdir(IMAGE_DIR)[0]
-    image = skimage.io.imread(os.path.join(IMAGE_DIR, image_name))
-
-    # depth_image = np.zeros((1, 1))
-
-    # this is the point where the cursor was during the select gesture
-    # image_point = (-1, -1)
-
-    # Initialize the inference model 
-    seg_inference_model = MaskRCNNInference(weights_path=WEIGHTS_PATH)
-    sample_detections = seg_inference_model.get_detections([image])[0]
-
-
-
-    # plt.imshow(sample_detections['masks'][:, :, 0])
-    # plt.show()
-
     print("Setting up Socket")
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -66,6 +66,7 @@ def main():
     while True:
         # Wait for connection
         connection, client_address = sock.accept()
+        start_time = timer()
 
         try:
             buffer = ""
@@ -109,9 +110,13 @@ def main():
             shape_estimation = ShapeEstimationModel(pil_img, rois)
             obj_models = shape_estimation.get_detections()
 
+            # TODO select correct model based on (x,y) tuple
 
-            # This is entrypoint for model pipeline
             connection.sendall(obj.encode("UTF-8"))
+            end_time = timer()
+            elapsed_time = end_time - start_time
+
+            print("Total server processing time: %s", elapsed_time)
 
             print("Listening for connections...")
 
@@ -120,7 +125,7 @@ def main():
 
 
 def load_obj_from_file():
-    filepath = 'model2.obj'
+    filepath = 'model0.obj'
     with open(filepath, 'r') as file:
         data = file.read()
         return data
@@ -132,6 +137,12 @@ def write_data_to_file(data):
         file.write(data)
 
 
+def write_model_to_file(model, model_id):
+    filepath = 'model' + str(model_id)+'.obj'
+    with open(filepath, 'w') as file:
+        file.write(model)
+
+
 def load_data_from_file():
     filepath = 'paralleldata.txt'
     with open(filepath, 'r') as file:
@@ -139,7 +150,7 @@ def load_data_from_file():
         return data
 
 
-def decode_message(message, img_counter):
+def decode_message(message):
     # message is string containing identifiers for each part image (i), depth (d) and point (p)
     # message example: "i[[[0,1,2],],[[3,4,5],],];d[[1],[2],];p[0,1];" for image with 2 pixels
     image_string = ""
@@ -181,15 +192,6 @@ def decode_message(message, img_counter):
     print(str(coordinates))
 
     return test_img, coordinates
-
-
-def crop_image_to_area_round_point(image, image_point):
-    print("cropping is not yet implemented")
-
-
-def estimate_shape(cropped_image):
-    # TODO call shape estimation
-    print("shape estimation not yet implemented")
 
 
 if __name__ == '__main__':
