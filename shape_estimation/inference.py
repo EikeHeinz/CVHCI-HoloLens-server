@@ -26,7 +26,7 @@ import cv2
 
 WEIGHTS_PATH = os.path.abspath('./shape_estimation/models/meshrcnn_R50.pth')
 CONFIG_FILE = os.path.abspath('./shape_estimation/models/meshrcnn_R50_FPN.yaml')
-FOCAL_LENGTH = 10.0
+FOCAL_LENGTH = 20.0
 DETECT_THRESH = 0.9
 
 class ShapeEstimationModel(object):
@@ -59,14 +59,18 @@ class ShapeEstimationModel(object):
             self.cfg, self.focal_length
         )
         # use PIL, to be consistent with evaluation
-        img = read_image_object(image)
+        img = read_image_object(image, format="BGR")
         predictions = demo.run_on_image(img, focal_length=self.focal_length)
         object = demo.object
         return object
 
     def get_detections(self):
         for roi in self.rois:
-            roi_image = self.input_image.crop((roi[1], roi[0], roi[3], roi[2]))
+            x1 = roi[1] - 5
+            y1 = roi[0] - 5
+            x2 = roi[3] + 5
+            y2 = roi[2] + 5
+            roi_image = self.input_image.crop((x1, y1, x2, y2))
             model_object = self.visualize_image(roi_image)
             self.objects.append(model_object)
         return self.objects
