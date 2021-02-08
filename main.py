@@ -13,6 +13,13 @@ import torch
 import tensorflow as tf
 
 from instance_segmentation.inference import MaskRCNNInference, WEIGHTS_PATH, IMAGE_DIR
+from instance_segmentation.mrcnn import visualize
+
+from instance_segmentation.mrcnn.sun import CLASSES
+
+INFERENCE_CLASSES = ['BG']
+INFERENCE_CLASSES.extend(CLASSES)
+
 from shape_estimation.inference import ShapeEstimationModel
 # import sys
 
@@ -23,8 +30,11 @@ get_sample_images = True
 ipAddress = '192.168.2.109'
 port = 10000
 
-use_local_model = False
-predict_local_model = False
+use_existing_local_model = False
+predict_existing_local_model = False
+
+show_current_img = False
+visualize_instances = False
 
 
 def main():
@@ -32,15 +42,21 @@ def main():
     print("Tensorflow version: ", tf.__version__)
 
     seg_inference_model = MaskRCNNInference(weights_path=WEIGHTS_PATH)
-    if use_local_model:
+    if use_existing_local_model:
         data = load_data_from_file()
         img, coordinates = decode_message(data)
+        if show_current_img:
+            plt.imshow(img)
+            plt.show()
 
-        plt.imshow(img)
-        plt.show()
-
-        if predict_local_model:
+        if predict_existing_local_model:
             sample_detections = seg_inference_model.get_detections([img])[0]
+            if visualize_instances:
+                r = sample_detections
+                visualize.display_instances(img, r['rois'], r['masks'], r['class_ids'],
+                                            INFERENCE_CLASSES, r['scores'],
+                                            save_path=f'test_detected.png')
+
             pil_img = Image.fromarray(img.astype('uint8'), 'RGB')
             rois = sample_detections['rois']
             shape_estimation = ShapeEstimationModel(pil_img, rois)
@@ -101,8 +117,7 @@ def main():
             write_data_to_file(buffer)
             buffer = buffer[buffer.index(";") + 1:]
             #write_data_to_file(buffer)
-            img, coordinates = decode_message(buffer, image_counter)
-            image_counter += 1
+            img, coordinates = decode_message(buffer)
             detections = seg_inference_model.get_detections([img])[0]
             rois = detections['rois']
 
@@ -116,7 +131,7 @@ def main():
             end_time = timer()
             elapsed_time = end_time - start_time
 
-            print("Total server processing time: %s", elapsed_time)
+            print("Total server processing time: %s" % elapsed_time)
 
             print("Listening for connections...")
 
@@ -125,7 +140,7 @@ def main():
 
 
 def load_obj_from_file():
-    filepath = 'model0.obj'
+    filepath = '0_mesh_chair_0.998.obj'
     with open(filepath, 'r') as file:
         data = file.read()
         return data
@@ -174,8 +189,8 @@ def decode_message(message):
 
     image_string = image_string[image_string.index("i") + 1:]
     image_string = "array(" + image_string + ", dtype=int)"
-    test_img = eval(image_string.strip())
-    print(test_img.shape)
+    rgb_img = eval(image_string.strip())
+    print(rgb_img.shape)
 
     # scaled_img = test_img / 255
     # scaled_img = np.array(scaled_img)
@@ -191,7 +206,7 @@ def decode_message(message):
     coordinates = tuple(map(float, point.split(",")))
     print(str(coordinates))
 
-    return test_img, coordinates
+    return rgb_img, coordinates
 
 
 if __name__ == '__main__':
