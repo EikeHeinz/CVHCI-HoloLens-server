@@ -1,40 +1,32 @@
 import os
-
 import socket
+from timeit import default_timer as timer
 import numpy as np
 from numpy import array
 import skimage
-
 import matplotlib.pyplot as plt
-
 from PIL import Image
-
 import torch
 import tensorflow as tf
-
 from instance_segmentation.inference import MaskRCNNInference, WEIGHTS_PATH, IMAGE_DIR
 from instance_segmentation.mrcnn import visualize
-
 from instance_segmentation.mrcnn.sun import CLASSES
+from shape_estimation.inference import ShapeEstimationModel
 
 INFERENCE_CLASSES = ['BG']
 INFERENCE_CLASSES.extend(CLASSES)
 
-from shape_estimation.inference import ShapeEstimationModel
-# import sys
-
-from timeit import default_timer as timer
-
-get_sample_images = True
-
-ipAddress = '192.168.2.109'
+# Set this accordingly
+ipAddress = '127.0.0.1'
 port = 10000
 
+# Begin debug flags
 use_existing_local_model = False
 predict_existing_local_model = False
 
 show_current_img = False
 visualize_instances = False
+# End debug flags
 
 
 def main():
@@ -67,7 +59,7 @@ def main():
                 write_model_to_file(model, model_counter)
                 model_counter += 1
 
-    obj = load_obj_from_file()
+    # obj = load_obj_from_file()
     print("Setting up Socket")
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -125,16 +117,15 @@ def main():
             shape_estimation = ShapeEstimationModel(pil_img, rois)
             obj_models = shape_estimation.get_detections()
 
-            # TODO select correct model based on (x,y) tuple
-            # model_index = roi_index_of_point(x, y, rois)
-            # if model_index:
-            #     print("point in an area, index is: " + str(model_index))
-            # else:
-            #     print("point not in any area")
-            #
-            # model = obj_models[model_index]
+            # select correct model based on (x,y) tuple
+            model_index = roi_index_of_point(coordinates[0], coordinates[1], rois)
+            if model_index:
+                print("point in an area, index is: " + str(model_index))
+            else:
+                print("point not in any area")
+            model = obj_models[model_index]
 
-            connection.sendall(obj.encode("UTF-8"))
+            connection.sendall(model.encode("UTF-8"))
             end_time = timer()
             elapsed_time = end_time - start_time
 
@@ -151,32 +142,6 @@ def roi_index_of_point(x, y, rois):
         if ((x >= roi[1] and x <= roi[3]) and (y >= roi[0] and y <= roi[2])):
             return rois.index(roi)
     return None
-
-
-def load_obj_from_file():
-    filepath = '0_mesh_chair_0.998.obj'
-    with open(filepath, 'r') as file:
-        data = file.read()
-        return data
-
-
-def write_data_to_file(data):
-    filepath = 'paralleldata.txt'
-    with open(filepath, 'w') as file:
-        file.write(data)
-
-
-def write_model_to_file(model, model_id):
-    filepath = 'model' + str(model_id)+'.obj'
-    with open(filepath, 'w') as file:
-        file.write(model)
-
-
-def load_data_from_file():
-    filepath = 'paralleldata.txt'
-    with open(filepath, 'r') as file:
-        data = file.read()
-        return data
 
 
 def decode_message(message):
@@ -206,10 +171,6 @@ def decode_message(message):
     rgb_img = eval(image_string.strip())
     print(rgb_img.shape)
 
-    # scaled_img = test_img / 255
-    # scaled_img = np.array(scaled_img)
-    # plt.imsave(str(img_counter)+".png", scaled_img, format='png')
-
     # depth_string = depth_string[depth_string.index("d") + 1:]
     # depth_string = "array(" + depth_string + ", dtype=int)"
     # depth_img = eval(depth_string.strip())
@@ -221,6 +182,32 @@ def decode_message(message):
     print(str(coordinates))
 
     return rgb_img, coordinates
+
+
+def load_obj_from_file():
+    filepath = '0_mesh_chair_0.998.obj'
+    with open(filepath, 'r') as file:
+        data = file.read()
+        return data
+
+
+def write_data_to_file(data):
+    filepath = 'paralleldata.txt'
+    with open(filepath, 'w') as file:
+        file.write(data)
+
+
+def write_model_to_file(model, model_id):
+    filepath = 'model' + str(model_id)+'.obj'
+    with open(filepath, 'w') as file:
+        file.write(model)
+
+
+def load_data_from_file():
+    filepath = 'paralleldata.txt'
+    with open(filepath, 'r') as file:
+        data = file.read()
+        return data
 
 
 if __name__ == '__main__':
